@@ -11,12 +11,19 @@ from utils.preprocess import minmax_normalize, meanstd_normalize
 from utils.custum_aug import PadIfNeededRightBottom
 
 
-class PascalVocDataset(Dataset):
+class Mars_Gastric_Dataset(Dataset):
     n_classes = 21
 
-    def __init__(self, base_dir='../data/pascal_voc_2012/VOCdevkit/VOC2012', split='train',
-                 affine_augmenter=None, image_augmenter=None, target_size=(512, 512),
-                 net_type='unet', ignore_index=255, debug=False):
+    def __init__(self,
+                 base_dir='../data/pascal_voc_2012/VOCdevkit/VOC2012',
+                 split='train', #   split可以为train、valid、test，根据文件的不同，会载入不同的文件
+                 affine_augmenter=None,
+                 image_augmenter=None,
+                 target_size=(512, 512),    #   这应该是输出图像的尺寸
+                 net_type='unet',
+                 ignore_index=255, #    忽略的标签值，在VOC里，255表示轮廓线
+                 debug=False):
+
         self.debug = debug
         self.base_dir = Path(base_dir)
         assert net_type in ['unet', 'deeplab']
@@ -24,6 +31,7 @@ class PascalVocDataset(Dataset):
         self.ignore_index = ignore_index
         self.split = split
 
+        #   这一系列的操作，都是为了得到图像和label的路径列表
         valid_ids = self.base_dir / 'ImageSets' / 'Segmentation' / 'val.txt'
         with open(valid_ids, 'r') as f:
             valid_ids = f.readlines()
@@ -35,10 +43,13 @@ class PascalVocDataset(Dataset):
             lbl_dir = 'SegmentationClassAug' if 'aug' in split else 'SegmentationClass'
             all_set = set([p.name[:-4] for p in self.base_dir.joinpath(lbl_dir).iterdir()])
             img_ids = list(all_set - valid_set)
+
+        #   最终的关键
         self.img_paths = [(self.base_dir / 'JPEGImages' / f'{img_id.strip()}.jpg') for img_id in img_ids]
         self.lbl_paths = [(self.base_dir / lbl_dir / f'{img_id.strip()}.png') for img_id in img_ids]
 
-        # Resize
+        #   病理图中不要用resize，看看这里有什么需要注意的
+        #   可能不需要，因为我们的图像尺寸是统一的！
         if isinstance(target_size, str):
             target_size = eval(target_size)
         if 'train' in self.split:
@@ -55,7 +66,7 @@ class PascalVocDataset(Dataset):
                                          albu.Crop(x_min=0, x_max=target_size[1],
                                                    y_min=0, y_max=target_size[0])])
 
-        # Augment
+        #   增广器
         if 'train' in self.split:
             self.affine_augmenter = affine_augmenter
             self.image_augmenter = image_augmenter

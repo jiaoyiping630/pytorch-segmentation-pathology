@@ -9,7 +9,7 @@ Data:
 Train:
   max_epoch: 20
   batch_size: 2
-  fp16: True
+  fp16: False
   resume: False
   pretrained_path:
 Loss:
