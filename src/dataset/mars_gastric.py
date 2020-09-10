@@ -13,7 +13,6 @@ from utils.custum_aug import PadIfNeededRightBottom
 
 
 class Mars_Gastric_Dataset(Dataset):
-    n_classes = 21
 
     def __init__(self,
                  base_dir=r'D:\Projects\MARS-Stomach\Patches',
