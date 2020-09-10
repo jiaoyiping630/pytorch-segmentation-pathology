@@ -33,6 +33,7 @@ class PredictDataset(Dataset):
         from pinglib.files import get_file_list_recursive, purename
         image_paths = get_file_list_recursive(image_folder, 'jpg')
         self.image_paths = image_paths
+        self.purenames = [purename(path) for path in image_paths]
 
         #   病理图中不要用resize，看看这里有什么需要注意的
         #   可能不需要，因为我们的图像尺寸是统一的！
@@ -54,7 +55,7 @@ class PredictDataset(Dataset):
             img = minmax_normalize(img, norm_range=(-1, 1))
         img = img.transpose(2, 0, 1)
         img = torch.FloatTensor(img)
-        return img
+        return img, self.purenames[index]
 
 
 def main():
@@ -64,6 +65,7 @@ def main():
     from logger.plot import history_ploter
     from utils.optimizer import create_optimizer
     from utils.metrics import compute_iou_batch
+    from pinglib.imgprocessing.basic import imwrite
 
     gpu_id = 2
     image_folder = r"D:\Projects\MARS-Stomach\Patches\Test"
@@ -120,20 +122,19 @@ def main():
     #   Predict
     model.eval()
     with torch.no_grad():
-        for batched in dataloader:
-            # with tqdm(dataloader) as _tqdm:
-            #     for batched in _tqdm:
-            images= batched
-            images = images.to(device)
-            preds = model.tta(images, net_type=net_type)
-            preds_np = preds.detach().cpu().numpy()
+        # for batched in dataloader:
+        with tqdm(dataloader) as _tqdm:
+            for batched in _tqdm:
+                images, purenames = batched
+                images = images.to(device)
+                preds = model.tta(images, net_type=net_type)
+                preds = F.softmax(preds)  # 进行softmax激活
+                preds = preds.detach().cpu().numpy()  # 比如，是12x3x512x512的
 
-            labels_np = labels.detach().cpu().numpy()
-            iou = compute_iou_batch(np.argmax(preds_np, axis=1), labels_np, classes)
-
-            _tqdm.set_postfix(OrderedDict(seg_loss=f'{loss.item():.5f}', iou=f'{iou:.3f}'))
-            valid_losses.append(loss.item())
-            valid_ious.append(iou)
+                for j in range(len(purenames)):
+                    tumor_possibility = preds[j, 2, :, :]
+                    target_path = os.path.join(save_folder, purenames + '_mask.png')
+                    imwrite((tumor_possibility*255).astype(np.uint8),target_path)
 
 
 if __name__ == "__main__":
