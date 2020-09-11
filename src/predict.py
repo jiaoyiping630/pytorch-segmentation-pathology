@@ -68,8 +68,8 @@ def main():
     from pinglib.imgprocessing.basic import imwrite
 
     gpu_id = 2
-    image_folder = r"D:\Projects\MARS-Stomach\Patches\Test"
-    save_folder = r"D:\Projects\MARS-Stomach\Patches\Test_predict_yiping"
+    image_folder = r"D:\Projects\MARS-Stomach\Patches\Test_overlap"
+    save_folder = r"D:\Projects\pytorch-segmentation-pathology\predict\overlap_epoch_11"
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
@@ -133,9 +133,38 @@ def main():
 
                 for j in range(len(purenames)):
                     tumor_possibility = preds[j, 2, :, :]
-                    target_path = os.path.join(save_folder, purenames + '_mask.png')
-                    imwrite((tumor_possibility*255).astype(np.uint8),target_path)
+                    target_path = os.path.join(save_folder, purenames[j] + '_mask.png')
+                    imwrite((tumor_possibility * 255).astype(np.uint8), target_path)
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+
+    #   接下来，把图片拼起来
+    from pinglib.toolkits.image_stitch import image_stitch
+    from pinglib.files import get_file_list, match_files, purename
+    from pinglib.imgprocessing.basic import imread, imwrite
+    #
+    # image_stitch(target_folder=r"D:\Projects\pytorch-segmentation-pathology\predict\overlap_epoch_11_stitch",
+    #              result_folder=r"D:\Projects\pytorch-segmentation-pathology\predict\overlap_epoch_11",
+    #              meta_paths=get_file_list(r"D:\Projects\MARS-Stomach\Patches\Test_overlap", 'pkl'),
+    #              result_appendix='_mask',  # 如果结果与原图文件名不同，e.g. a_0_0.jpg -> a_0_0_mask.jpg，则此处填'_mask',
+    #              suffix='png',
+    #              channels=1,  # 结果的通道数
+    #              )
+
+    #   最后，过滤背景，并保存为jpg
+    result_paths = get_file_list(r"D:\Projects\pytorch-segmentation-pathology\predict\overlap_epoch_11_stitch", 'jpg')
+    foreground_paths = get_file_list(r"E:\MARS-Stomach\Foregrounds_image", 'png')
+    [result_paths, foreground_paths] = match_files([result_paths, foreground_paths], ['_mask', '_foreground'])
+    for (result_path, foreground_path) in zip(result_paths, foreground_paths):
+        result_patch = imread(result_path)
+        foreground_patch = imread(foreground_path)
+        #   以128为阈值进行分割
+        result_patch[result_patch < 128] = 0
+        result_patch[result_patch >= 128] = 255
+        #   滤除前景
+        result_patch[foreground_patch == 0] = 0
+        target_path = os.path.join(r"D:\Projects\pytorch-segmentation-pathology\predict\overlap_epoch_11_final",
+                                   purename(result_path) + '.jpg')
+        imwrite(result_patch, target_path)
